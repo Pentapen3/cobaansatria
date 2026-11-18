@@ -2262,19 +2262,7 @@ function MotorSayaView({
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               Sebelum lanjut, cek dulu.
             </h2>
-            <button
-              type="button"
-              onClick={onSaveMotor}
-              className="min-h-[48px] bg-[#FFD000] hover:bg-[#ffe033] text-[#111111] font-black text-xs sm:text-sm px-6 py-3 rounded-xl shadow-lg shadow-[#FFD000]/25 ring-2 ring-[#FFD000]/50 hover:scale-[1.02] transition-all inline-flex items-center gap-2"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" strokeLinecap="round" strokeLinejoin="round" />
-                <polyline points="17 21 17 13 7 13 7 21" strokeLinecap="round" strokeLinejoin="round" />
-                <polyline points="7 3 7 8 15 8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span>Simpan Data Motor</span>
-              <span aria-hidden="true">↗</span>
-            </button>
+           
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-2">
