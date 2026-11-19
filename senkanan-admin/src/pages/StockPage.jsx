@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Badge, StatCard, Tabs, SearchBox, Eyebrow, card } from '../components/ui.jsx';
 import { IconBox, IconStock, IconCheck, IconWarn, IconDownload, IconPlus, IconSave } from '../components/Icons.jsx';
-import { CATEGORIES, stockStatus } from '../data.js';
+import { stockStatus } from '../data.js';
 
 const STATUS_BADGE = {
   tersedia: { tone: 'green', label: 'Tersedia' },
@@ -9,12 +9,12 @@ const STATUS_BADGE = {
   habis: { tone: 'red', label: 'Habis' },
 };
 
-export default function StockPage({ products, onAddStock, onExport, onToast }) {
+export default function StockPage({ products = [], lastUpdated = '', onAddStock, onExport, onToast }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('Semua kategori');
   const [tab, setTab] = useState('semua');
-  const [selectedId, setSelectedId] = useState('piringan-cakram-220mm');
-  const [qty, setQty] = useState('20');
+  const [selectedId, setSelectedId] = useState('');
+  const [qty, setQty] = useState('');
   const [note, setNote] = useState('');
 
   const counts = useMemo(() => {
@@ -22,6 +22,8 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
     products.forEach((p) => { c[stockStatus(p.stock)] += 1; });
     return c;
   }, [products]);
+
+  const categories = useMemo(() => [...new Set(products.map((p) => p.category).filter(Boolean))], [products]);
 
   const totalUnits = products.reduce((s, p) => s + p.stock, 0);
   const needRestock = counts.terbatas + counts.habis;
@@ -35,12 +37,17 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
     return matchQ && matchC && matchT;
   });
 
-  const selected = products.find((p) => p.id === selectedId) || products[0];
+  const selected = products.find((p) => p.id === selectedId) || products[0] || null;
+  const selectedStock = Number(selected?.stock || 0);
   const add = Math.max(0, parseInt(qty, 10) || 0);
-  const after = selected.stock + add;
+  const after = selectedStock + add;
   const afterStatus = stockStatus(after);
 
   const save = () => {
+    if (!selected) {
+      onToast('Pilih produk terlebih dahulu.');
+      return;
+    }
     if (add <= 0) {
       onToast('Masukkan jumlah penambahan lebih dari 0.');
       return;
@@ -74,7 +81,7 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
           >
             <IconDownload size={16} /> Ekspor stok
           </button>
-          <div className="text-[11px] text-zinc-400 mt-2">Diperbarui 31 Okt 2026, 09.42 WIB</div>
+          {lastUpdated && <div className="text-[11px] text-zinc-400 mt-2">{lastUpdated}</div>}
         </div>
       </div>
 
@@ -103,7 +110,7 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
                 className="min-h-[44px] sm:w-[200px] bg-[#2A2A2A] border border-white/10 rounded-lg px-3 text-xs text-white focus:border-[#FFD000]"
               >
                 <option>Semua kategori</option>
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                {categories.map((c) => <option key={c}>{c}</option>)}
               </select>
             </div>
 
@@ -123,7 +130,7 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
               <tbody className="divide-y divide-white/10">
                 {filtered.map((p) => {
                   const st = STATUS_BADGE[stockStatus(p.stock)];
-                  const active = p.id === selectedId;
+                  const active = p.id === selected?.id;
                   return (
                     <tr key={p.id} className={active ? 'bg-[#26231A] shadow-[inset_3px_0_0_#FFD000]' : ''}>
                       <td className="px-5 py-3">
@@ -187,10 +194,10 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
             <div>
               <label htmlFor="stock-product" className="block text-xs font-bold text-white mb-2">Pilih produk *</label>
               <div className="flex items-center gap-3 bg-[#2A2A2A] border border-white/10 rounded-lg p-2.5">
-                <img src={selected.image} alt="" className="w-10 h-10 rounded object-cover bg-[#E5E5E5]" />
+                {selected?.image && <img src={selected.image} alt="" className="w-10 h-10 rounded object-cover bg-[#E5E5E5]" />}
                 <select
                   id="stock-product"
-                  value={selectedId}
+                  value={selected?.id || ''}
                   onChange={(e) => setSelectedId(e.target.value)}
                   className="flex-1 bg-transparent text-xs font-bold text-white min-h-[40px] focus:outline-none"
                 >
@@ -200,8 +207,8 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
                 </select>
               </div>
               <div className="flex items-center justify-between mt-2 text-[11px] text-zinc-400">
-                <span>Stok saat ini: {selected.stock} unit</span>
-                <Badge tone={STATUS_BADGE[stockStatus(selected.stock)].tone}>{STATUS_BADGE[stockStatus(selected.stock)].label}</Badge>
+                <span>Stok saat ini: {selectedStock} unit</span>
+                {selected && <Badge tone={STATUS_BADGE[stockStatus(selectedStock)].tone}>{STATUS_BADGE[stockStatus(selectedStock)].label}</Badge>}
               </div>
             </div>
 
@@ -232,14 +239,14 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
                 rows={3}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Contoh: Barang masuk dari distributor. Nota INV-2026-1031."
+                placeholder="Contoh: Barang masuk dari distributor."
                 className="w-full bg-[#2A2A2A] border border-white/10 rounded-lg p-3 text-xs text-white placeholder:text-zinc-500 focus:border-[#FFD000]"
               />
             </div>
 
             <div className="bg-[#141414] border border-white/10 rounded-lg p-4 space-y-2 text-xs">
               <div className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">Ringkasan penambahan</div>
-              <div className="flex justify-between text-zinc-300"><span>Stok saat ini</span><span className="font-extrabold text-white">{selected.stock} unit</span></div>
+              <div className="flex justify-between text-zinc-300"><span>Stok saat ini</span><span className="font-extrabold text-white">{selectedStock} unit</span></div>
               <div className="flex justify-between text-[#FFD000]"><span>Penambahan</span><span className="font-extrabold">+{add} unit</span></div>
               <div className="flex items-center justify-between pt-3 border-t border-white/10">
                 <div>
@@ -253,12 +260,13 @@ export default function StockPage({ products, onAddStock, onExport, onToast }) {
             <button
               type="button"
               onClick={save}
-              className="w-full min-h-[48px] bg-[#FFD000] hover:bg-[#ffe033] text-[#111111] font-extrabold text-sm rounded-lg inline-flex items-center justify-center gap-2 transition-colors"
+              disabled={!selected}
+              className="w-full min-h-[48px] bg-[#FFD000] hover:bg-[#ffe033] disabled:opacity-40 text-[#111111] font-extrabold text-sm rounded-lg inline-flex items-center justify-center gap-2 transition-colors"
             >
               <IconSave size={17} /> Simpan penambahan stok
             </button>
             <p className="text-[11px] text-zinc-400 text-center">
-              Belum disimpan. Stok pada tabel tetap {selected.stock} unit sampai penambahan disimpan.
+              Belum disimpan. Stok pada tabel tetap {selectedStock} unit sampai penambahan disimpan.
             </p>
           </section>
 

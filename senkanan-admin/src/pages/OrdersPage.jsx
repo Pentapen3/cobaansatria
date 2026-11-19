@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Badge, StatCard, Tabs, SearchBox, Eyebrow, card } from '../components/ui.jsx';
 import { IconBag, IconClipboard, IconBox, IconTruck, IconCalendar, IconWarn, IconX } from '../components/Icons.jsx';
-import { PRODUCTS, formatRupiah, formatVA, orderItemCount, orderSubtotal, orderTotal } from '../data.js';
+import { formatRupiah, formatVA, orderItemCount, orderSubtotal, orderTotal } from '../data.js';
 
 const STAGE = {
   dibuat: { tone: 'yellow', label: 'Dibuat' },
@@ -17,9 +17,18 @@ const PAY = {
 
 const STEPS = ['dibuat', 'diproses', 'dikirim'];
 
-const dateOf = (o) => o.createdAt.split(' • ')[0];
+const dateOf = (o) => (o?.createdAt ? String(o.createdAt).split(' • ')[0] : '');
 
-export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayments, selectedId, setSelectedId }) {
+export default function OrdersPage({
+  orders = [],
+  lastUpdated = '',
+  periodNote = '',
+  onAdvance,
+  onCancelOrder,
+  onGoPayments,
+  selectedId,
+  setSelectedId,
+}) {
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState('semua');
   const [date, setDate] = useState('Semua tanggal');
@@ -36,23 +45,30 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
     return () => window.removeEventListener('keydown', onKey);
   }, [cancelTarget]);
 
-  const count = (s) => orders.filter((o) => o.stage === s).length;
-  const dates = [...new Set(orders.map(dateOf))];
+  const safeOrders = Array.isArray(orders) ? orders : [];
+  const count = (s) => safeOrders.filter((o) => o.stage === s).length;
+  const dates = [...new Set(safeOrders.map(dateOf).filter(Boolean))];
 
-  const filtered = orders.filter((o) => {
+  const filtered = safeOrders.filter((o) => {
     const q = query.trim().toLowerCase();
-    const matchQ = !q || o.id.toLowerCase().includes(q) || o.customer.toLowerCase().includes(q);
+    const matchQ =
+      !q ||
+      String(o.id || '').toLowerCase().includes(q) ||
+      String(o.customer || '').toLowerCase().includes(q);
     const matchT = tab === 'semua' || o.stage === tab;
     const matchD = date === 'Semua tanggal' || dateOf(o) === date;
     return matchQ && matchT && matchD;
   });
 
-  const selected = orders.find((o) => o.id === selectedId) || orders[0] || null;
+  const selected = safeOrders.find((o) => o.id === selectedId) || safeOrders[0] || null;
   const stepIndex = selected ? STEPS.indexOf(selected.stage) : -1;
-  const payOk = selected ? selected.payment.status === 'lunas' : false;
+  const payStatus = selected?.payment?.status || 'menunggu';
+  const payInfo = PAY[payStatus] || PAY.menunggu;
+  const stageInfo = selected ? STAGE[selected.stage] || STAGE.dibuat : null;
+  const payOk = payStatus === 'lunas';
 
   const tabs = [
-    { id: 'semua', label: `Semua (${orders.length})` },
+    { id: 'semua', label: `Semua (${safeOrders.length})` },
     { id: 'dibuat', label: `Dibuat (${count('dibuat')})` },
     { id: 'diproses', label: `Diproses (${count('diproses')})` },
     { id: 'dikirim', label: `Dikirim (${count('dikirim')})` },
@@ -60,7 +76,7 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
 
   const confirmCancel = () => {
     if (!cancelTarget) return;
-    onCancelOrder(cancelTarget.id);
+    onCancelOrder?.(cancelTarget.id);
     setCancelTarget(null);
   };
 
@@ -72,14 +88,15 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
           <h1 className="font-display font-bold text-5xl text-white mt-2 leading-none">Pesanan Pelanggan</h1>
           <p className="text-sm text-zinc-300 mt-2">Tinjau pesanan, pembayaran, dan pengiriman pelanggan dalam satu halaman.</p>
         </div>
-        <div className="text-right text-xs">
-          <div className="text-white font-semibold">Sabtu, 31 Oktober 2026</div>
-          <div className="text-[11px] text-zinc-400 mt-0.5">Diperbarui 10.25 WIB</div>
-        </div>
+        {lastUpdated && (
+          <div className="text-right text-xs">
+            <div className="text-white font-semibold">{lastUpdated}</div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard label="Total pesanan" value={orders.length} unit="pesanan" note="29–31 Oktober 2026" icon={<IconBag size={18} />} />
+        <StatCard label="Total pesanan" value={safeOrders.length} unit="pesanan" note={periodNote} icon={<IconBag size={18} />} />
         <StatCard label="Dibuat" value={count('dibuat')} unit="pesanan" note="Belum mulai diproses" icon={<IconClipboard size={18} />} highlight />
         <StatCard label="Diproses" value={count('diproses')} unit="pesanan" note="Dalam persiapan toko" icon={<IconBox size={18} />} />
         <StatCard label="Dikirim" value={count('dikirim')} unit="pesanan" note="Dalam perjalanan ke pelanggan" icon={<IconTruck size={18} />} />
@@ -91,7 +108,7 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
           <div className="p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-extrabold text-white">Daftar pesanan</h2>
-              <span className="text-xs text-zinc-400">{filtered.length} pesanan • Terbaru dahulu</span>
+              <span className="text-xs text-zinc-400">{filtered.length} pesanan</span>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
               <SearchBox id="order-search" value={query} onChange={setQuery} placeholder="Cari nomor pesanan / nama pelanggan..." />
@@ -127,20 +144,21 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
               <tbody className="divide-y divide-white/10">
                 {filtered.map((o) => {
                   const active = selected && o.id === selected.id;
-                  const st = STAGE[o.stage];
-                  const pay = PAY[o.payment.status];
+                  const st = STAGE[o.stage] || STAGE.dibuat;
+                  const pay = PAY[o.payment?.status] || PAY.menunggu;
+                  const items = Array.isArray(o.items) ? o.items : [];
                   return (
                     <tr key={o.id} className={active ? 'bg-[#26231A] shadow-[inset_3px_0_0_#FFD000]' : ''}>
                       <td className="px-5 py-3.5">
                         <div className={`text-xs font-extrabold ${active ? 'text-[#FFD000]' : 'text-white'}`}>#{o.id}</div>
-                        <div className="text-[11px] text-zinc-400">{o.createdAt.replace(' 2026', '').replace(' WIB', '')}</div>
+                        <div className="text-[11px] text-zinc-400">{String(o.createdAt || '').replace(' WIB', '')}</div>
                       </td>
                       <td className="px-3 py-3.5">
                         <div className="text-xs font-bold text-white">{o.customer}</div>
                         <div className="text-[11px] text-zinc-400">{o.city}</div>
                       </td>
                       <td className="px-3 py-3.5 text-[11px] text-zinc-300">
-                        {o.items.length} produk<br />{orderItemCount(o)} item
+                        {items.length} produk<br />{orderItemCount(o)} item
                       </td>
                       <td className="px-3 py-3.5 text-xs font-extrabold text-white whitespace-nowrap">{formatRupiah(orderTotal(o))}</td>
                       <td className="px-3 py-3.5"><Badge tone={pay.tone}>{pay.label}</Badge></td>
@@ -149,7 +167,7 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
                         <div className="inline-flex items-center justify-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setSelectedId(o.id)}
+                            onClick={() => setSelectedId?.(o.id)}
                             className={`min-h-[36px] px-3 rounded text-[11px] font-bold border transition-colors whitespace-nowrap ${
                               active
                                 ? 'bg-[#FFD000] text-[#111111] border-[#FFD000]'
@@ -180,8 +198,7 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
           </div>
 
           <div className="px-5 py-3 border-t border-white/10 flex justify-between text-[11px] text-zinc-400">
-            <span>Menampilkan {filtered.length} dari {orders.length} pesanan • {date}</span>
-            <span>Halaman 1 dari 1</span>
+            <span>Menampilkan {filtered.length} dari {safeOrders.length} pesanan • {date}</span>
           </div>
         </section>
 
@@ -194,26 +211,24 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
                 <div className="text-lg font-extrabold text-[#FFD000] mt-2">#{selected.id}</div>
                 <div className="text-[11px] text-zinc-400">{selected.createdAt}</div>
               </div>
-              <Badge tone={STAGE[selected.stage].tone}>{STAGE[selected.stage].label}</Badge>
+              {stageInfo && <Badge tone={stageInfo.tone}>{stageInfo.label}</Badge>}
             </div>
 
             <div className="border-t border-white/10 pt-4">
               <div className="flex justify-between text-xs mb-3">
                 <h3 className="font-extrabold text-white">Barang pesanan</h3>
-                <span className="text-zinc-400">{selected.items.length} produk • {orderItemCount(selected)} item</span>
+                <span className="text-zinc-400">{(selected.items || []).length} produk • {orderItemCount(selected)} item</span>
               </div>
               <div className="space-y-3">
-                {selected.items.map((it) => {
-                  const p = PRODUCTS.find((x) => x.id === it.productId);
-                  if (!p) return null;
+                {(selected.items || []).map((it) => {
                   return (
                     <div key={it.productId} className="flex items-center gap-3">
-                      <img src={p.image} alt="" className="w-12 h-12 rounded object-cover bg-[#E5E5E5]" />
+                      <img src={it.image} alt="" className="w-12 h-12 rounded object-cover bg-[#E5E5E5]" />
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{p.name}</div>
-                        <div className="text-[11px] text-zinc-400">{formatRupiah(p.price)} / item ×{it.qty}</div>
+                        <div className="text-xs font-bold text-white truncate">{it.name}</div>
+                        <div className="text-[11px] text-zinc-400">{formatRupiah(it.price)} / item ×{it.qty}</div>
                       </div>
-                      <div className="text-xs font-extrabold text-white">{formatRupiah(p.price * it.qty)}</div>
+                      <div className="text-xs font-extrabold text-white">{formatRupiah(Number(it.price || 0) * Number(it.qty || 0))}</div>
                     </div>
                   );
                 })}
@@ -223,7 +238,7 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
             <div className="border-t border-white/10 pt-4 space-y-2.5 text-xs">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-white">Pembayaran</h3>
-                <Badge tone={PAY[selected.payment.status].tone}>{PAY[selected.payment.status].label}</Badge>
+                <Badge tone={payInfo.tone}>{payInfo.label}</Badge>
               </div>
               <div className="flex justify-between text-zinc-300"><span>Subtotal barang ({orderItemCount(selected)} item)</span><span className="font-bold text-white">{formatRupiah(orderSubtotal(selected))}</span></div>
               <div className="flex justify-between text-zinc-300"><span>Ongkir • {selected.courier}</span><span className="font-bold text-white">{formatRupiah(selected.shippingCost)}</span></div>
@@ -232,18 +247,18 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
                 <span className="text-2xl font-black text-[#FFD000]">{formatRupiah(orderTotal(selected))}</span>
               </div>
               <div className="bg-[#2A2A2A] rounded-lg p-3">
-                <div className="font-bold text-white">{selected.payment.bank} Virtual Account</div>
-                <div className="text-zinc-300 tabular-nums mt-0.5">{formatVA(selected.payment.va)}</div>
+                <div className="font-bold text-white">{selected.payment?.bank} Virtual Account</div>
+                <div className="text-zinc-300 tabular-nums mt-0.5">{formatVA(selected.payment?.va)}</div>
                 <div className="text-[11px] text-zinc-400 mt-1">
-                  {selected.payment.status === 'lunas' && `Lunas pada ${selected.payment.confirmedAt}`}
-                  {selected.payment.status === 'menunggu' && `Pelanggan konfirmasi bayar ${selected.payment.paidAt}`}
-                  {selected.payment.status === 'ditolak' && 'Pembayaran ditolak admin'}
+                  {payStatus === 'lunas' && selected.payment?.confirmedAt && `Lunas pada ${selected.payment.confirmedAt}`}
+                  {payStatus === 'menunggu' && selected.payment?.paidAt && `Pelanggan konfirmasi bayar ${selected.payment.paidAt}`}
+                  {payStatus === 'ditolak' && 'Pembayaran ditolak admin'}
                 </div>
               </div>
-              {selected.payment.status === 'menunggu' && (
+              {payStatus === 'menunggu' && (
                 <button
                   type="button"
-                  onClick={() => onGoPayments(selected.id)}
+                  onClick={() => onGoPayments?.(selected.id)}
                   className="w-full min-h-[40px] rounded-md border border-[#FFD000] text-[#FFD000] hover:bg-[#FFD000] hover:text-[#111111] text-xs font-bold transition-colors"
                 >
                   Periksa &amp; konfirmasi pembayaran
@@ -252,7 +267,10 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
             </div>
 
             <div className="border-t border-white/10 pt-4 text-xs space-y-1.5">
-              <div className="flex justify-between"><h3 className="font-extrabold text-white">Penerima &amp; alamat</h3><span className="text-zinc-400">Rumah • Utama</span></div>
+              <div className="flex justify-between">
+                <h3 className="font-extrabold text-white">Penerima &amp; alamat</h3>
+                {selected.addressLabel && <span className="text-zinc-400">{selected.addressLabel}</span>}
+              </div>
               <div className="font-bold text-white">{selected.customer}</div>
               <div className="text-zinc-300">{selected.email}</div>
               <div className="text-zinc-300">{selected.phone}</div>
@@ -272,7 +290,9 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
                   <div key={s}>
                     <div className={`h-[3px] rounded ${i <= stepIndex ? 'bg-[#FFD000]' : 'bg-white/15'}`} />
                     <div className={`text-xs font-bold mt-2 ${i <= stepIndex ? 'text-white' : 'text-zinc-400'}`}>{STAGE[s].label}</div>
-                    <div className="text-[10px] text-zinc-400">{i <= stepIndex ? (i === 0 ? selected.createdAt.replace(' 2026', '').replace(' WIB', '') : 'Selesai') : 'Menunggu'}</div>
+                    <div className="text-[10px] text-zinc-400">
+                      {i <= stepIndex ? (i === 0 ? String(selected.createdAt || '').replace(' WIB', '') : 'Selesai') : 'Menunggu'}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -288,7 +308,7 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
                 <button
                   type="button"
                   disabled={!payOk}
-                  onClick={() => onAdvance(selected.id)}
+                  onClick={() => onAdvance?.(selected.id)}
                   className="w-full min-h-[44px] bg-[#FFD000] hover:bg-[#ffe033] disabled:opacity-40 text-[#111111] font-extrabold text-xs rounded-lg transition-colors"
                 >
                   Proses pesanan
@@ -297,7 +317,7 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
               {selected.stage === 'diproses' && (
                 <button
                   type="button"
-                  onClick={() => onAdvance(selected.id)}
+                  onClick={() => onAdvance?.(selected.id)}
                   className="w-full min-h-[44px] bg-[#FFD000] hover:bg-[#ffe033] text-[#111111] font-extrabold text-xs rounded-lg transition-colors"
                 >
                   Kirim pesanan
@@ -322,7 +342,7 @@ export default function OrdersPage({ orders, onAdvance, onCancelOrder, onGoPayme
         ) : (
           <aside className={`${card} xl:col-span-4 border-t-2 border-t-[#FFD000] p-6 text-center space-y-2`}>
             <h2 className="font-display font-bold text-2xl text-white">Tidak ada pesanan</h2>
-            <p className="text-xs text-zinc-400">Semua pesanan telah dibatalkan atau belum ada pesanan masuk.</p>
+            <p className="text-xs text-zinc-400">Belum ada pesanan masuk atau semua pesanan telah dibatalkan.</p>
           </aside>
         )}
       </div>

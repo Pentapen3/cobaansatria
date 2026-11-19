@@ -16,8 +16,10 @@ const CRUMB = {
 };
 
 // Kerangka halaman admin: strip kuning, sidebar, top bar, konten, footer.
-export default function AdminLayout({ page, onNavigate, onLogout, counts, children, footerNote }) {
+export default function AdminLayout({ page, onNavigate, onLogout, counts = {}, user = {}, children, footerNote }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const userName = user?.name || '';
+  const initials = userName.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
 
   return (
     <div className="min-h-screen bg-[#111111] flex flex-col">
@@ -104,11 +106,11 @@ export default function AdminLayout({ page, onNavigate, onLogout, counts, childr
                 className="flex items-center gap-2.5 min-h-[44px]"
               >
                 <span className="w-9 h-9 rounded-full bg-[#2A2A2A] text-[#FFD000] text-xs font-extrabold inline-flex items-center justify-center">
-                  AD
+                  {initials}
                 </span>
                 <span className="hidden sm:block text-left leading-tight">
-                  <span className="block text-xs font-bold text-white">Admin SENkanan</span>
-                  <span className="block text-[10px] text-zinc-400">Administrator</span>
+                  <span className="block text-xs font-bold text-white">{userName}</span>
+                  <span className="block text-[10px] text-zinc-400">{user?.role || ''}</span>
                 </span>
                 <IconChevron size={14} className="text-zinc-400" />
               </button>

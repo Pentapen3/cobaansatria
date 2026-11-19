@@ -159,39 +159,35 @@ const CATEGORIES = [
 
 
 const INITIAL_CART = [
-  { productId: 'kampas-rem-cakram', qty: 2 },
-  { productId: 'spion-bar-end-cnc', qty: 1 },
-  { productId: 'busi-iridium-performance', qty: 1 },
+  
 ];
 
 const INITIAL_ADDRESS = {
-  recipient: 'Aditya Pratama',
-  phone: '0812 3456 7890',
-  email: 'aditya.pratama@example.com',
-  label: 'Rumah • Utama',
-  street: 'Jl. Melati No. 24, RT 03/RW 05, Sukamaju, Cilodong, Kota Depok, Jawa Barat 16415',
-  note: 'Pagar hitam, rumah di sebelah bengkel.',
+  recipient: '',
+  phone: '',
+  email: '',
+  label: '',
+  street: '',
+  note: '',
 };
 
 const INITIAL_ORDER = {
-  id: '#SK-261031-0184',
-  createdAt: '31 Oktober 2026, 10.24 WIB',
-  estimatedArrival: '3-4 November 2026',
-  stage: 'diproses',
-  courier: 'JNE Reguler',
-  trackingNumber: 'DEMO2611010184',
+  id: '',
+  createdAt: '',
+  estimatedArrival: '',
+  stage: '',
+  courier: '',
+  trackingNumber: '',
   items: [
-    { productId: 'kampas-rem-cakram', qty: 2 },
-    { productId: 'spion-bar-end-cnc', qty: 1 },
-    { productId: 'busi-iridium-performance', qty: 1 },
+
   ],
-  shippingCost: 18000,
+  shippingCost: 0,
   insuranceCost: 0,
   serviceFee: 0,
-  paymentMethod: 'BCA Virtual Account •••• 7890',
-  paymentType: 'VA',
-  vaNumber: '8077708123457890',
-  paidAt: '31 Oktober 2026, 10.25 WIB',
+  paymentMethod: '',
+  paymentType: '',
+  vaNumber: '',
+  paidAt: '',
   address: INITIAL_ADDRESS,
   note: '',
 };
@@ -415,17 +411,53 @@ function CategoryIcon({ type }) {
   }
 }
 
+const CANDIDATE_APIS = [
+  import.meta.env.VITE_API_URL,
+  'http://localhost:5001/api',
+  'http://localhost:5000/api',
+].filter((v, i, arr) => Boolean(v) && arr.indexOf(v) === i);
+
+let resolvedApiCache = CANDIDATE_APIS[0] || 'http://localhost:5001/api';
+
+async function getApiBase() {
+  for (const base of CANDIDATE_APIS) {
+    try {
+      const res = await fetch(`${base}/health`);
+      if (res.ok) {
+        resolvedApiCache = base;
+        return base;
+      }
+    } catch (e) {
+      // coba port berikutnya
+    }
+  }
+  return resolvedApiCache;
+}
+
+const SESSION_ID = `sess-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+function apiFetch(url, options = {}) {
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      'x-session-id': SESSION_ID,
+    },
+  });
+}
+
 export default function App() {
+
   const [activeTab, setActiveTab] = useState('beranda');
   const [selectedCategory, setSelectedCategory] = useState('Semua Produk');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('rekomendasi');
-  const [wishlist, setWishlist] = useState(['sein-led-sequential']);
+  const [wishlist, setWishlist] = useState([]);
   const [cart, setCart] = useState(INITIAL_CART);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Profil Motor Saya
+  // Profil Motor Saya (dari database)
   const [motorDraft, setMotorDraft] = useState({
     ownerName: '',
     brand: '',
@@ -435,7 +467,7 @@ export default function App() {
   const [savedMotor, setSavedMotor] = useState(null);
   const [motorError, setMotorError] = useState('');
 
-  // Alamat & Checkout State
+  // Alamat & Checkout State (dari database)
   const [address, setAddress] = useState(INITIAL_ADDRESS);
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [addressDraft, setAddressDraft] = useState(INITIAL_ADDRESS);
@@ -447,7 +479,8 @@ export default function App() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
-  // Order & Modal State
+  // Orders & Modal State (dari database)
+  const [orders, setOrders] = useState([]);
   const [currentOrder, setCurrentOrder] = useState(INITIAL_ORDER);
   const [infoModalKey, setInfoModalKey] = useState(null);
   const [isConsultModalOpen, setIsConsultModalOpen] = useState(false);
@@ -466,7 +499,8 @@ export default function App() {
     () =>
       cart.reduce((sum, item) => {
         const prod = PRODUCTS.find((p) => p.id === item.productId);
-        return sum + (prod ? prod.price * item.qty : 0);
+        const unitPrice = prod ? prod.price : Number(item.price || 0);
+        return sum + unitPrice * item.qty;
       }, 0),
     [cart]
   );
@@ -499,6 +533,89 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Muat keranjang, wishlist, profil, dan pesanan dari MySQL melalui Backend API
+  useEffect(() => {
+    let active = true;
+    const loadInitialFromDb = async () => {
+      try {
+        const apiBase = await getApiBase();
+        const [cartRes, wishRes, motorRes, addrRes, ordersRes] = await Promise.all([
+          apiFetch(`${apiBase}/cart`),
+          apiFetch(`${apiBase}/wishlist`),
+          apiFetch(`${apiBase}/profile/motor`),
+          apiFetch(`${apiBase}/profile/address`),
+          apiFetch(`${apiBase}/orders`),
+        ]);
+
+        if (!active) return;
+
+        if (cartRes.ok) {
+          const cartData = await cartRes.json();
+          setCart(Array.isArray(cartData) ? cartData : []);
+        }
+        if (wishRes.ok) {
+          const wishData = await wishRes.json();
+          setWishlist(Array.isArray(wishData) ? wishData : []);
+        }
+        if (motorRes.ok) {
+          const motorData = await motorRes.json();
+          if (motorData) {
+            setSavedMotor(motorData);
+            setMotorDraft(motorData);
+          }
+        }
+        if (addrRes.ok) {
+          const addrData = await addrRes.json();
+          if (addrData) {
+            setAddress(addrData);
+            setAddressDraft(addrData);
+          }
+        }
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          const list = Array.isArray(ordersData) ? ordersData : [];
+          setOrders(list);
+          if (list.length > 0) {
+            setCurrentOrder(list[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Gagal memuat data dari backend:', err);
+      }
+    };
+
+    loadInitialFromDb();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Sinkronisasi berkala pesanan & status pembayaran dari database agar perubahan Admin langsung tampil
+  useEffect(() => {
+    const syncOrders = async () => {
+      try {
+        const apiBase = await getApiBase();
+        const ordersRes = await apiFetch(`${apiBase}/orders`);
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          const list = Array.isArray(ordersData) ? ordersData : [];
+          setOrders(list);
+          setCurrentOrder((prev) => {
+            if (list.length === 0) return INITIAL_ORDER;
+            if (!prev.id) return list[0];
+            const updated = list.find((o) => o.id === prev.id);
+            return updated || list[0];
+          });
+        }
+      } catch (err) {
+        // Abaikan sementara jika server sedang restart
+      }
+    };
+
+    const timer = setInterval(syncOrders, 3500);
+    return () => clearInterval(timer);
+  }, []);
+
   const navigateTo = (tab, categoryOverride = null) => {
     setActiveTab(tab);
     if (categoryOverride) {
@@ -507,42 +624,78 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const toggleWishlist = (productId) => {
-    setWishlist((prev) =>
-      prev.includes(productId)
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId]
-    );
-  };
-
-  const addToCart = (productId, qty = 1) => {
-    const prod = PRODUCTS.find((p) => p.id === productId);
-    setCart((prev) => {
-      const existing = prev.find((i) => i.productId === productId);
-      if (existing) {
-        return prev.map((i) =>
-          i.productId === productId ? { ...i, qty: i.qty + qty } : i
-        );
+  const toggleWishlist = async (productId) => {
+    try {
+      const apiBase = await getApiBase();
+      const res = await apiFetch(`${apiBase}/wishlist/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setWishlist(Array.isArray(updated) ? updated : []);
       }
-      return [...prev, { productId, qty }];
-    });
-    if (prod) {
-      showToast(`${prod.title} (${qty} item) ditambahkan ke keranjang.`);
+    } catch (err) {
+      showToast('Gagal memperbarui favorit di database.');
     }
   };
 
-  const updateCartQty = (productId, delta) => {
-    setCart((prev) =>
-      prev.map((item) =>
-        item.productId === productId
-          ? { ...item, qty: Math.max(1, item.qty + delta) }
-          : item
-      )
-    );
+  const addToCart = async (productId, qty = 1) => {
+    const prod = PRODUCTS.find((p) => p.id === productId);
+    try {
+      const apiBase = await getApiBase();
+      const res = await apiFetch(`${apiBase}/cart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId, qty }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Gagal menyimpan item ke keranjang database.');
+      }
+      setCart(Array.isArray(data) ? data : []);
+      if (prod) {
+        showToast(`${prod.title} (${qty} item) disimpan ke keranjang.`);
+      }
+    } catch (err) {
+      showToast(err.message || 'Backend tidak terhubung. Pastikan senkanan-backend berjalan.');
+    }
   };
 
-  const removeCartItem = (productId) => {
-    setCart((prev) => prev.filter((item) => item.productId !== productId));
+  const updateCartQty = async (productId, delta) => {
+    const existing = cart.find((i) => i.productId === productId);
+    if (!existing) return;
+    const nextQty = Math.max(1, existing.qty + delta);
+    try {
+      const apiBase = await getApiBase();
+      const res = await apiFetch(`${apiBase}/cart/${encodeURIComponent(productId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qty: nextQty }),
+      });
+      if (res.ok) {
+        const updatedCart = await res.json();
+        setCart(Array.isArray(updatedCart) ? updatedCart : []);
+      }
+    } catch (err) {
+      showToast('Gagal memperbarui jumlah keranjang.');
+    }
+  };
+
+  const removeCartItem = async (productId) => {
+    try {
+      const apiBase = await getApiBase();
+      const res = await apiFetch(`${apiBase}/cart/${encodeURIComponent(productId)}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        const updatedCart = await res.json();
+        setCart(Array.isArray(updatedCart) ? updatedCart : []);
+      }
+    } catch (err) {
+      showToast('Gagal menghapus item dari keranjang.');
+    }
   };
 
   const handleSearchSubmit = (e) => {
@@ -550,49 +703,103 @@ export default function App() {
     navigateTo('katalog');
   };
 
-  const handleSaveMotor = (e) => {
+  const handleSaveMotor = async (e) => {
     if (e) e.preventDefault();
     if (!motorDraft.brand.trim() || !motorDraft.modelYear.trim()) {
       setMotorError('Isi minimal merek dan tipe/model motor sebelum menyimpan.');
       return;
     }
     setMotorError('');
-    setSavedMotor({ ...motorDraft });
-    showToast('Profil Motor Saya berhasil disimpan.');
+    try {
+      const apiBase = await getApiBase();
+      const res = await apiFetch(`${apiBase}/profile/motor`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(motorDraft),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Gagal menyimpan data motor');
+      setSavedMotor(data);
+      setMotorDraft(data);
+      showToast('Profil Motor Saya berhasil disimpan ke database.');
+    } catch (err) {
+      showToast(err.message || 'Gagal terhubung ke database.');
+    }
   };
 
-  const handleCheckoutSubmit = () => {
+  const handleSaveAddress = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...addressDraft,
+        phone: addressDraft.phone?.trim() || '-',
+        label: addressDraft.label?.trim() || 'Rumah • Utama',
+      };
+      const apiBase = await getApiBase();
+      const res = await apiFetch(`${apiBase}/profile/address`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Gagal menyimpan alamat');
+      setAddress(data);
+      setAddressDraft(data);
+      setIsEditingAddress(false);
+      showToast('Alamat pengiriman disimpan ke database.');
+    } catch (err) {
+      showToast(err.message || 'Gagal menyimpan alamat ke database.');
+    }
+  };
+
+  const handleCheckoutSubmit = async () => {
     if (cart.length === 0) return;
     setIsSubmittingOrder(true);
-    const shippingCost = shippingMethod === 'yes' ? 28000 : 18000;
-    const insuranceCost = withInsurance ? 1800 : 0;
-    const serviceFee = 1000;
 
-    setTimeout(() => {
-      const newOrder = {
-        id: '#SK-261113-' + String(Math.floor(1000 + Math.random() * 9000)),
-        createdAt: '13 November 2026, 21.30 WIB',
-        estimatedArrival: shippingMethod === 'yes' ? '14-15 November 2026' : '16-17 November 2026',
-        stage: 'dibuat',
-        courier: shippingMethod === 'yes' ? 'JNE YES' : 'JNE Reguler',
-        trackingNumber: 'DEMO2611130184',
-        items: [...cart],
-        shippingCost,
-        insuranceCost,
-        serviceFee,
-        paymentMethod: appliedPaymentLabel,
-        paymentType: 'VA',
-        vaNumber: selectedVA.number,
-        paidAt: '13 November 2026, 21.31 WIB',
-        address: { ...address },
-        note: orderNote,
+    try {
+      const apiBase = await getApiBase();
+      const response = await apiFetch(`${apiBase}/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cart.map((item) => ({
+            productId: item.productId,
+            qty: item.qty,
+          })),
+          shippingMethod,
+          withInsurance,
+          paymentMethod: appliedPaymentLabel,
+          vaNumber: selectedVA.number,
+          address: {
+            ...address,
+            recipient: address.recipient?.trim() || 'Pelanggan SENkanan',
+          },
+          note: orderNote,
+          clearCartAfter: true,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Gagal menyimpan pesanan ke database');
+      }
+
+      const created = {
+        ...data,
+        vaNumber: data.vaNumber || selectedVA.number,
       };
-      setCurrentOrder(newOrder);
+      setCurrentOrder(created);
+      setOrders((prev) => [created, ...prev]);
+      setCart([]);
+      setOrderNote('');
       setVaNumbers(generateAllVA());
-      setIsSubmittingOrder(false);
       navigateTo('pesanan');
-      showToast('Pesanan berhasil dibuat. Pantau progres pengiriman di sini.');
-    }, 350);
+      showToast(`Pesanan ${data.id} berhasil disimpan ke database.`);
+    } catch (err) {
+      showToast(err.message || 'Gagal terhubung ke server backend.');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   return (
@@ -862,17 +1069,9 @@ export default function App() {
         {activeTab === 'pesanan' && (
           <PesananView
             navigateTo={navigateTo}
+            orders={orders}
             order={currentOrder}
-            setOrderStage={(stage) =>
-              setCurrentOrder((prev) => ({
-                ...prev,
-                stage,
-                trackingNumber:
-                  stage === 'dikirim' || stage === 'selesai'
-                    ? prev.trackingNumber || 'DEMO2611010184'
-                    : '',
-              }))
-            }
+            onSelectOrder={setCurrentOrder}
           />
         )}
       </main>
@@ -1071,12 +1270,7 @@ export default function App() {
             </div>
 
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setAddress({ ...addressDraft });
-                setIsEditingAddress(false);
-                showToast('Alamat pengiriman diperbarui.');
-              }}
+              onSubmit={handleSaveAddress}
               className="space-y-4 text-xs"
             >
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1343,8 +1537,6 @@ function BerandaView({
   onOpenConsult,
   savedMotor,
 }) {
-
-
   const featuredProducts = useMemo(() => {
     if (selectedCategory === 'Semua Produk') return PRODUCTS;
     return PRODUCTS.filter((p) => p.category === selectedCategory);
@@ -3110,31 +3302,59 @@ function CheckoutView({
 /* ============================================================================
    6. PESANAN VIEW (DIBUAT / DIPROSES / DIKIRIM / TIBA DI TUJUAN)
    ============================================================================ */
-function PesananView({ navigateTo, order, setOrderStage }) {
+function PesananView({ navigateTo, orders = [], order, onSelectOrder }) {
+  if (!order || !order.id) {
+    return (
+      <div className="max-w-[1320px] mx-auto px-4 sm:px-8 pt-8 pb-14 space-y-8">
+        <nav aria-label="Breadcrumb" className="text-xs text-zinc-400 flex items-center gap-2">
+          <button type="button" onClick={() => navigateTo('beranda')} className="hover:text-white">
+            Beranda
+          </button>
+          <span aria-hidden="true">/</span>
+          <span className="text-white font-semibold">Pesanan</span>
+        </nav>
+
+        <div className="bg-[#232323] border border-white/10 rounded-2xl p-10 text-center space-y-3">
+          <Eyebrow>PESANAN KAMU</Eyebrow>
+          <h1 className="text-2xl sm:text-3xl font-black text-white">Belum ada pesanan di database</h1>
+          <p className="text-xs text-zinc-400 max-w-md mx-auto">
+            Pilih sparepart dari katalog dan selesaikan checkout agar pesanan tercatat di database dan muncul di panel admin.
+          </p>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => navigateTo('katalog')}
+              className="min-h-[44px] px-5 rounded-xl bg-[#FFD000] text-[#111111] font-bold text-xs"
+            >
+              Belanja di Katalog
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const stageConfig = {
     dibuat: {
       heading: 'Pesanan Dibuat',
       badge: 'Pesanan dibuat',
-      desc: 'Pesananmu berhasil dibuat dan siap diproses.',
+      desc: 'Pesananmu berhasil disimpan ke database dan menunggu konfirmasi pembayaran.',
       estimateNote: 'Estimasi tiba setelah pengiriman dimulai.',
       stepIndex: 0,
-      lastUpdated: '31 Okt 2026, 10.25 WIB',
     },
     diproses: {
       heading: 'Pesanan Diproses',
       badge: 'Pesanan diproses',
-      desc: 'Barang pesananmu sedang dicek dan dikemas.',
+      desc: 'Pembayaran telah dikonfirmasi admin. Barang pesananmu sedang dikemas.',
       estimateNote: 'Estimasi tiba setelah pengiriman dimulai.',
       stepIndex: 1,
-      lastUpdated: '31 Okt 2026, 13.10 WIB',
     },
     dikirim: {
       heading: 'Pesanan Dikirim',
       badge: 'Pesanan dikirim',
-      desc: 'Paket pesananmu sedang dalam perjalanan.',
+      desc: 'Paket pesananmu sedang dalam perjalanan menuju alamat tujuan.',
       estimateNote: 'Paket dalam perjalanan menuju alamatmu.',
       stepIndex: 2,
-      lastUpdated: '1 Nov 2026, 16.30 WIB',
     },
     selesai: {
       heading: 'Pesanan Tiba di Tujuan',
@@ -3142,34 +3362,52 @@ function PesananView({ navigateTo, order, setOrderStage }) {
       desc: 'Paket pesanan telah diterima di alamat tujuan.',
       estimateNote: 'Pengiriman selesai.',
       stepIndex: 3,
-      lastUpdated: '3 Nov 2026, 14.15 WIB',
+    },
+    dibatalkan: {
+      heading: 'Pesanan Dibatalkan',
+      badge: 'Dibatalkan',
+      desc: 'Pesanan ini telah dibatalkan.',
+      estimateNote: 'Pesanan dibatalkan.',
+      stepIndex: 0,
     },
   };
 
-  const currentMeta = stageConfig[order.stage] || stageConfig.diproses;
+  const currentMeta = stageConfig[order.stage] || stageConfig.dibuat;
+  const payStatus = order.payment?.status || 'menunggu';
+  const payBadge =
+    payStatus === 'lunas'
+      ? { label: 'Lunas', cls: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400', dot: 'bg-emerald-400', note: order.payment?.confirmedAt ? `Dikonfirmasi admin ${order.payment.confirmedAt}` : 'Pembayaran terkonfirmasi' }
+      : payStatus === 'ditolak'
+      ? { label: 'Ditolak', cls: 'bg-red-500/15 border-red-500/30 text-red-400', dot: 'bg-red-400', note: order.payment?.note || 'Pembayaran ditolak admin' }
+      : { label: 'Menunggu Verifikasi', cls: 'bg-[#FFD000]/15 border-[#FFD000]/30 text-[#FFD000]', dot: 'bg-[#FFD000]', note: order.paidAt ? `Konfirmasi pelanggan ${order.paidAt}` : 'Menunggu verifikasi admin' };
 
   const steps = [
-    { label: 'Pesanan dibuat', sub: '31 Okt 2026 • 10.24 WIB' },
+    { label: 'Pesanan dibuat', sub: order.createdAt || 'Tercatat' },
     {
       label: 'Diproses',
-      sub: currentMeta.stepIndex >= 1 ? '31 Okt 2026 • 13.10 WIB' : 'Menunggu',
+      sub: currentMeta.stepIndex >= 1 ? (order.payment?.confirmedAt || 'Sedang diproses') : 'Menunggu',
     },
     {
       label: 'Dikirim',
-      sub: currentMeta.stepIndex >= 2 ? '1 Nov 2026 • 16.30 WIB' : 'Menunggu',
+      sub: currentMeta.stepIndex >= 2 ? 'Dalam pengiriman' : 'Menunggu',
     },
     {
       label: 'Tiba di tujuan',
-      sub: currentMeta.stepIndex >= 3 ? '3 Nov 2026 • 14.15 WIB' : currentMeta.stepIndex === 2 ? 'Estimasi 3-4 Nov 2026' : 'Menunggu',
+      sub: currentMeta.stepIndex >= 3 ? 'Selesai' : currentMeta.stepIndex === 2 ? `Estimasi ${order.estimatedArrival}` : 'Menunggu',
     },
   ];
 
-  const itemCount = order.items.reduce((s, i) => s + i.qty, 0);
-  const subtotal = order.items.reduce((s, i) => {
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+  const itemCount = orderItems.reduce((s, i) => s + Number(i.qty || 0), 0);
+  const subtotal = orderItems.reduce((s, i) => {
     const p = PRODUCTS.find((prod) => prod.id === i.productId);
-    return s + (p ? p.price * i.qty : 0);
+    const unitPrice = Number(i.price || p?.price || 0);
+    return s + unitPrice * Number(i.qty || 0);
   }, 0);
-  const totalPaid = subtotal + order.shippingCost + (order.insuranceCost || 0) + (order.serviceFee || 0);
+  const totalPaid =
+    order.totalAmount != null
+      ? Number(order.totalAmount)
+      : subtotal + Number(order.shippingCost || 0) + Number(order.insuranceCost || 0) + Number(order.serviceFee || 0);
 
   return (
     <div className="max-w-[1320px] mx-auto px-4 sm:px-8 pt-8 pb-14 space-y-8">
@@ -3194,14 +3432,33 @@ function PesananView({ navigateTo, order, setOrderStage }) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => navigateTo('katalog')}
-          className="min-h-[44px] bg-[#252525] border border-white/15 hover:border-[#FFD000] text-white text-xs font-bold px-4 py-2.5 rounded-lg inline-flex items-center gap-2 self-start sm:self-auto"
-        >
-          <span aria-hidden="true">←</span>
-          <span>Semua Pesanan</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          {orders.length > 1 && (
+            <select
+              aria-label="Pilih pesanan"
+              value={order.id}
+              onChange={(e) => {
+                const found = orders.find((o) => o.id === e.target.value);
+                if (found) onSelectOrder?.(found);
+              }}
+              className="min-h-[44px] bg-[#252525] border border-white/15 rounded-lg px-3 text-xs font-bold text-white focus:border-[#FFD000]"
+            >
+              {orders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.id} ({o.stage})
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={() => navigateTo('katalog')}
+            className="min-h-[44px] bg-[#252525] border border-white/15 hover:border-[#FFD000] text-white text-xs font-bold px-4 py-2.5 rounded-lg inline-flex items-center gap-2"
+          >
+            <span aria-hidden="true">←</span>
+            <span>Belanja Lagi</span>
+          </button>
+        </div>
       </div>
 
       {/* Order Status Tracker Card */}
@@ -3275,7 +3532,7 @@ function PesananView({ navigateTo, order, setOrderStage }) {
           })}
         </div>
 
-        {/* Footer of Tracker + Interactive Stage Switcher */}
+        {/* Footer of Tracker */}
         <div className="pt-4 border-t border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-[11px] text-zinc-400">
           <div>
             {order.courier} &nbsp;•&nbsp; Resi:{' '}
@@ -3283,32 +3540,7 @@ function PesananView({ navigateTo, order, setOrderStage }) {
               {currentMeta.stepIndex >= 2 ? order.trackingNumber : 'Belum tersedia'}
             </strong>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-zinc-500">Pratinjau tahap:</span>
-            {[
-              { id: 'dibuat', label: 'Dibuat' },
-              { id: 'diproses', label: 'Diproses' },
-              { id: 'dikirim', label: 'Dikirim' },
-              { id: 'selesai', label: 'Tiba' },
-            ].map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setOrderStage(s.id)}
-                className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors ${
-                  order.stage === s.id
-                    ? 'bg-[#FFD000] text-[#111111]'
-                    : 'bg-[#2C2C2C] text-zinc-300 hover:text-white'
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-            <span className="hidden xl:inline text-zinc-500 ml-2">
-              Pembaruan terakhir: {currentMeta.lastUpdated}
-            </span>
-          </div>
+          <span className="text-zinc-500">Status disinkronkan otomatis dengan database toko</span>
         </div>
       </div>
 
@@ -3320,14 +3552,20 @@ function PesananView({ navigateTo, order, setOrderStage }) {
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <h2 className="text-lg font-black text-white">Barang Pesanan</h2>
               <span className="text-xs text-zinc-400">
-                {order.items.length} produk • {itemCount} item
+                {orderItems.length} produk • {itemCount} item
               </span>
             </div>
 
             <div className="divide-y divide-white/10">
-              {order.items.map((item) => {
-                const prod = PRODUCTS.find((p) => p.id === item.productId);
-                if (!prod) return null;
+              {orderItems.map((item) => {
+                const prod = PRODUCTS.find((p) => p.id === item.productId) || {
+                  id: item.productId,
+                  title: item.title || item.name || item.productId,
+                  spec: '',
+                  price: Number(item.price || 0),
+                  image: item.image || '',
+                };
+                const unitPrice = Number(item.price || prod.price || 0);
                 return (
                   <div key={prod.id} className="py-4 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
@@ -3336,9 +3574,9 @@ function PesananView({ navigateTo, order, setOrderStage }) {
                       </div>
                       <div>
                         <h3 className="text-sm font-bold text-white">{prod.title}</h3>
-                        <p className="text-xs text-zinc-400">{prod.spec}</p>
+                        {prod.spec && <p className="text-xs text-zinc-400">{prod.spec}</p>}
                         <p className="text-xs text-zinc-400 mt-1">
-                          {formatRupiah(prod.price)} / item
+                          {formatRupiah(unitPrice)} / item
                         </p>
                       </div>
                     </div>
@@ -3346,7 +3584,7 @@ function PesananView({ navigateTo, order, setOrderStage }) {
                     <div className="flex items-center gap-6">
                       <span className="text-xs text-zinc-400">× {item.qty}</span>
                       <span className="text-sm font-black text-white">
-                        {formatRupiah(prod.price * item.qty)}
+                        {formatRupiah(unitPrice * Number(item.qty || 0))}
                       </span>
                     </div>
                   </div>
@@ -3366,21 +3604,17 @@ function PesananView({ navigateTo, order, setOrderStage }) {
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 text-xs">
               <div className="md:col-span-4 space-y-1">
-                <div className="font-bold text-white text-sm">{order.address.recipient}</div>
-                <div className="text-zinc-400">{order.address.label}</div>
-                <div className="text-zinc-300">{order.address.phone}</div>
-                <div className="text-zinc-400">{order.address.email}</div>
+                <div className="font-bold text-white text-sm">{order.address?.recipient}</div>
+                <div className="text-zinc-400">{order.address?.label}</div>
+                <div className="text-zinc-300">{order.address?.phone}</div>
+                <div className="text-zinc-400">{order.address?.email}</div>
               </div>
               <div className="md:col-span-8 space-y-1.5">
-                <p className="text-zinc-200 leading-relaxed">{order.address.street}</p>
-                {order.address.note && <p className="text-zinc-400">{order.address.note}</p>}
+                <p className="text-zinc-200 leading-relaxed">{order.address?.street}</p>
+                {order.address?.note && <p className="text-zinc-400">{order.address.note}</p>}
               </div>
             </div>
           </div>
-
-          <p className="text-[11px] text-zinc-500">
-            Pratinjau desain: detail pesanan, pengiriman, pembayaran, dan data penerima merupakan contoh.
-          </p>
         </div>
 
         {/* Right: Pembayaran Card */}
@@ -3388,9 +3622,9 @@ function PesananView({ navigateTo, order, setOrderStage }) {
           <div className="bg-[#232323] border border-white/10 rounded-2xl p-6 space-y-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-black text-white">Pembayaran</h2>
-              <span className="inline-flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold px-2.5 py-0.5 rounded">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true" />
-                Lunas
+              <span className={`inline-flex items-center gap-1.5 border text-[11px] font-bold px-2.5 py-0.5 rounded ${payBadge.cls}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${payBadge.dot}`} aria-hidden="true" />
+                {payBadge.label}
               </span>
             </div>
 
@@ -3440,13 +3674,12 @@ function PesananView({ navigateTo, order, setOrderStage }) {
                 </div>
               )}
               <div className="text-[11px] text-zinc-400 pt-1">
-                <div>Pembayaran berhasil</div>
-                <div>{order.paidAt}</div>
+                <div>{payBadge.note}</div>
               </div>
             </div>
 
             <p className="text-[11px] text-zinc-400 leading-relaxed">
-              Tidak ada pembayaran tambahan. Simpan nomor pesanan sebagai referensi belanjamu.
+              Simpan nomor pesanan sebagai referensi belanjamu. Status akan otomatis diperbarui setelah admin memverifikasi pembayaran dan mengirim paket.
             </p>
           </div>
         </div>
