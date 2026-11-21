@@ -75,7 +75,7 @@ export default function AdminLayout({ page, onNavigate, onLogout, counts = {}, u
             <div className="font-display font-bold text-[26px] leading-[1.05] text-white">
               PART TEPAT.<br />MOTOR SIAP.
             </div>
-            <div className="text-[10px] text-zinc-400 mt-3">SENkanan Admin • v1.0</div>
+            
           </div>
         </aside>
 

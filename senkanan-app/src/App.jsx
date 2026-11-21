@@ -227,14 +227,7 @@ const INFO_DOCS = {
       'Tersedia perlindungan asuransi pengiriman opsional sebesar Rp1.800 untuk melindungi paket dari risiko kerusakan atau kehilangan selama perjalanan.',
     ],
   },
-  retur: {
-    title: 'Retur & Penukaran',
-    subtitle: 'Jaminan penukaran apabila part tidak sesuai spesifikasi pesanan.',
-    body: [
-      'Pengajuan retur atau penukaran dapat dilakukan maksimal 3 hari setelah paket diterima dengan menyertakan video pembukaan kemasan dan kondisi part belum terpasang.',
-      'Pastikan kemasan asli dan kelengkapan baut atau soket masih utuh saat proses pengembalian.',
-    ],
-  },
+  
   syarat: {
     title: 'Syarat & Ketentuan',
     subtitle: 'Ketentuan penggunaan konsep storefront SENkanan.',
@@ -1121,36 +1114,7 @@ export default function App() {
               </ul>
             </div>
 
-            <div className="lg:col-span-3">
-              <h2 className="text-white font-bold text-sm mb-4">Informasi Belanja</h2>
-              <ul className="space-y-2.5 text-xs">
-                <li>
-                  <button type="button" onClick={() => setInfoModalKey('pemesanan')} className="hover:text-[#FFD000] transition-colors">
-                    Cara Pemesanan
-                  </button>
-                </li>
-                <li>
-                  <button type="button" onClick={() => setInfoModalKey('pengiriman')} className="hover:text-[#FFD000] transition-colors">
-                    Pengiriman &amp; Ongkir
-                  </button>
-                </li>
-                <li>
-                  <button type="button" onClick={() => setInfoModalKey('retur')} className="hover:text-[#FFD000] transition-colors">
-                    Retur &amp; Penukaran
-                  </button>
-                </li>
-                <li>
-                  <button type="button" onClick={() => setInfoModalKey('syarat')} className="hover:text-[#FFD000] transition-colors">
-                    Syarat &amp; Ketentuan
-                  </button>
-                </li>
-                <li>
-                  <button type="button" onClick={() => setInfoModalKey('privasi')} className="hover:text-[#FFD000] transition-colors">
-                    Kebijakan Privasi
-                  </button>
-                </li>
-              </ul>
-            </div>
+            
 
             <div className="lg:col-span-3">
               <h2 className="text-white font-bold text-sm mb-4">Hubungi Kami</h2>
@@ -1171,7 +1135,7 @@ export default function App() {
                       <circle cx="17.5" cy="6.5" r="1" fill="currentColor" />
                     </svg>
                   </span>
-                  <span>Instagram: @senkanan.contoh</span>
+                  <span>Instagram: @senkanan.</span>
                 </li>
                 <li className="flex items-center gap-2.5">
                   <span className="text-[#FFD000]" aria-hidden="true">
@@ -1180,12 +1144,10 @@ export default function App() {
                       <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                     </svg>
                   </span>
-                  <span>halo@senkanan.example</span>
+                  <span>halosenkanan@gmail.com</span>
                 </li>
               </ul>
-              <p className="text-[11px] text-zinc-500 mt-3">
-                Kontak contoh: bukan kontak toko aktif.
-              </p>
+              
             </div>
           </div>
 
@@ -1222,7 +1184,7 @@ export default function App() {
         <div className="border-t border-white/10">
           <div className="max-w-[1320px] mx-auto px-4 sm:px-8 py-5 flex flex-col sm:flex-row justify-between items-center gap-2 text-[11px] text-zinc-500">
             <span>© 2026 SENkanan. Sparepart &amp; Aksesori Motor.</span>
-            <span className="tracking-wider uppercase">KONSEP STOREFRONT / DEMO</span>
+           
           </div>
         </div>
       </footer>
@@ -1824,9 +1786,7 @@ function BerandaView({
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </button>
-            <span className="text-[11px] font-semibold text-[#111111]/75">
-              Pratinjau desain • Kontak contoh di bawah
-            </span>
+            
           </div>
         </div>
       </section>
